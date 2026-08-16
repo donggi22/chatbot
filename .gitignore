@@ -1,0 +1,7 @@
+.env
+__pycache__/
+.gradle/
+app/build/
+local.properties
+server.log
+server.pid
