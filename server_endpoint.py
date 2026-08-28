@@ -62,7 +62,15 @@ TOOLS = [
             "description": "현재 날짜, 요일, 시각(KST)을 반환합니다. 오늘 날짜나 지금 몇 시인지 물어볼 때 사용하세요.",
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
-    }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_battery",
+            "description": "현재 배터리 잔량(%)을 반환합니다. 배터리가 얼마나 남았는지 물어볼 때 사용하세요.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
 ]
 
 # Gemini는 OpenAI 스타일 tool 스키마를 그대로 안 받아서 변환
@@ -80,11 +88,23 @@ GEMINI_TOOLS = [
 ]
 
 
+def _get_battery_capacity() -> int:
+    base = "/sys/class/power_supply"
+    for entry in os.listdir(base):
+        type_path = os.path.join(base, entry, "type")
+        if os.path.isfile(type_path) and open(type_path).read().strip() == "Battery":
+            with open(os.path.join(base, entry, "capacity")) as f:
+                return int(f.read().strip())
+    raise RuntimeError("배터리 장치를 찾을 수 없습니다")
+
+
 def _run_tool(name: str, _args: dict) -> str:
     if name == "get_datetime":
         now = datetime.now(KST)
         weekdays = ["월", "화", "수", "목", "금", "토", "일"]
         return now.strftime(f"%Y년 %m월 %d일 ({weekdays[now.weekday()]}요일) %H:%M KST")
+    if name == "get_battery":
+        return f"{_get_battery_capacity()}%"
     return f"(지원하지 않는 툴: {name})"
 
 
