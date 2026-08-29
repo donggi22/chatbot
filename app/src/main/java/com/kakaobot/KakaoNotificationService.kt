@@ -24,12 +24,7 @@ class KakaoNotificationService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName != KAKAO_PACKAGE) return
 
-        val extras = sbn.notification.extras
-        // EXTRA_TITLE = 채팅방 이름 (1:1이면 상대방 이름)
-        val title = extras.getString(Notification.EXTRA_TITLE) ?: return
-        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return
-
-        val (roomId, sender, message) = parseNotification(title, text)
+        val (roomId, sender, message) = parseNotification(sbn.notification) ?: return
         val replyAction = findReplyAction(sbn.notification) ?: return
 
         engine.handle(roomId, sender, message) { reply ->
@@ -43,10 +38,21 @@ class KakaoNotificationService : NotificationListenerService() {
     }
 
     /**
-     * 그룹 채팅: text = "발신자: 메시지"
-     * 1:1 채팅:  text = "메시지", title = 상대방 이름
+     * adb logcat으로 실측 확인된 카톡 알림 구조 (MessagingStyle 아님, BigTextStyle):
+     *   android.title = 1:1이면 상대방 이름, 그룹이면 방 이름
+     *   android.text  = 1:1이면 "발신자: " 접두어 없이 메시지 원문 그대로
+     *   android.extras.EXTRA_IS_GROUP_CONVERSATION = 그룹 여부 (신뢰 가능한 플래그)
+     * 그룹 채팅 포맷("발신자: 메시지")은 미검증이라 isGroupConversation일 때만 콜론 분리를 시도.
      */
-    private fun parseNotification(title: String, text: String): Triple<String, String, String> {
+    private fun parseNotification(notification: Notification): Triple<String, String, String>? {
+        val extras = notification.extras
+        val title = extras.getString(Notification.EXTRA_TITLE) ?: return null
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return null
+
+        if (!extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION)) {
+            return Triple(title, title, text)
+        }
+
         val colonIdx = text.indexOf(": ")
         return if (colonIdx in 1..29) {
             Triple(title, text.substring(0, colonIdx), text.substring(colonIdx + 2))
