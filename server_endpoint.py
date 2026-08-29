@@ -18,6 +18,7 @@ Groq 합산 처리량 (RPD 기준):
 import json
 import time
 import os
+import logging
 from datetime import date, datetime, timezone, timedelta
 import groq
 from google import genai
@@ -27,6 +28,12 @@ from flask import Blueprint, request, jsonify
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logging.basicConfig(
+    filename="/home/dev/blocked.log",  # 실제 서버 경로로 수정
+    level=logging.INFO,
+    format="%(asctime)s %(message)s",
+)
 
 kakao_bp = Blueprint("kakao", __name__)
 
@@ -319,6 +326,11 @@ def _try_gemini(history: list, message: str):
     )
     router = get_gemini_router()
     resp, model_used = router.chat(contents=contents, config=config)
+
+    if not resp.candidates:
+        block_reason = getattr(resp.prompt_feedback, "block_reason", None)
+        logging.info(f"[BLOCKED] model={model_used} reason={block_reason} msg={message!r}")
+        raise RuntimeError(f"Gemini({model_used}) candidates=None, block_reason={block_reason}")
 
     # 툴 콜 루프: 모델이 function_call 파트를 반환하면 실행 결과를 넣고 재요청
     for _ in range(5):  # 무한루프 방지
