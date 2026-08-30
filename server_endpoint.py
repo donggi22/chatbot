@@ -29,11 +29,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(
-    filename="/home/dev/blocked.log",  # 실제 서버 경로로 수정
-    level=logging.INFO,
-    format="%(asctime)s %(message)s",
-)
+_block_logger = logging.getLogger("gemini_block")
+_block_logger.setLevel(logging.INFO)
+_block_logger.propagate = False  # 루트 로거로 전파 안 함 → httpx/werkzeug 로그 안 섞임
+_block_logger.addHandler(logging.FileHandler("/home/dev/blocked.log"))
+_block_logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(message)s"))
 
 kakao_bp = Blueprint("kakao", __name__)
 
@@ -329,7 +329,7 @@ def _try_gemini(history: list, message: str):
 
     if not resp.candidates:
         block_reason = getattr(resp.prompt_feedback, "block_reason", None)
-        logging.info(f"[BLOCKED] model={model_used} reason={block_reason} msg={message!r}")
+        _block_logger.info(f"[BLOCKED] model={model_used} reason={block_reason} msg={message!r}")
         raise RuntimeError(f"Gemini({model_used}) candidates=None, block_reason={block_reason}")
 
     # 툴 콜 루프: 모델이 function_call 파트를 반환하면 실행 결과를 넣고 재요청
