@@ -12,6 +12,9 @@ class ServerClient {
     private val http = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        // 메시지 간 간격이 길어서, 재사용된 연결이 공유기 NAT 타임아웃으로 이미 끊긴 뒤
+        // 다시 쓰다가 "Software caused connection abort"가 나는 걸 막기 위해 연결 재사용 안 함
+        .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
         .build()
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
