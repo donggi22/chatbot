@@ -37,19 +37,20 @@ _block_logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(message)
 
 kakao_bp = Blueprint("kakao", __name__)
 
-# 품질 우선순위 순서 — 위에서부터 시도, llama-3.1-8b는 RPD가 14.4K라 마지막 안전망
+# Groq — 위에서부터 시도
 GROQ_MODELS = [
-    "openai/gpt-oss-120b",     # RPD 1K / TPD 200K
-    # "llama-3.3-70b-versatile", # RPD 1K / TPD 100K - 단종됨
-    "qwen/qwen3.6-27b",        # RPD 1K / TPD 200K
-    "openai/gpt-oss-20b",      # RPD 1K / TPD 200K
-    "llama-3.1-8b-instant",    # RPD 14.4K / TPD 500K — 최후 보루
+    "qwen/qwen3.8-27b",            # RPD 1K / TPD 200K
+    "openai/gpt-oss-120b",         # RPD 1K / TPD 200K
+    "openai/gpt-oss-20b",          # RPD 1K / TPD 200K
+    "openai/gpt-oss-safeguard-20b" # RPD 1K / TPD 200K
+    # "llama-3.3-70b-versatile",   # RPD 1K / TPD 100K — 단종됨
+    # "llama-3.1-8b-instant",      # RPD 14.4K / TPD 500K — 단종됨
 ]
 
-# Gemini는 Groq보다 먼저 시도되는 1차 공급자
+# Gemini
 GEMINI_MODELS = [
-    "gemini-3.1-flash-lite", # 500 requests per day
     "gemini-3.5-flash-lite", # 500 requests per day
+    "gemini-3.1-flash-lite", # 500 requests per day
 ]
 
 # RPM 429: 2분 쿨다운, RPD 429: 24시간 제외
