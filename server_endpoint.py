@@ -2,17 +2,13 @@
 카카오봇 서버 엔드포인트
 Android 앱 → POST /chat → LLM → {"reply": "..."} 반환
 
-공급자 우선순위: Gemini 먼저 시도 → 실패(예외/일일한도소진) 시 Groq 다중모델 체인으로 폴백
+공급자 우선순위: Groq 먼저 시도 → 실패(예외/일일한도소진) 시 Gemini 체인으로 폴백
 
 다중 모델 폴백 전략 (공급자별 라우터 공통):
   요청 → 모델 A 시도 → 429면 모델 B → 또 429면 모델 C → ...
   - RPM 429: 120s 쿨다운 후 복귀
   - RPD 429: 해당 모델 오늘 하루 제외 (일일 한도 소진)
-  - 모든 모델 RPD 소진 시 DailyLimitExhausted → 다음 공급자로 폴백(Gemini) 또는 안내 반환(Groq)
-
-Groq 합산 처리량 (RPD 기준):
-  gpt-oss-120b(1K) + llama-3.3-70b(1K) + qwen-27b(1K) + gpt-oss-20b(1K)
-  + llama-3.1-8b(14.4K) = 약 18,400 req/day
+  - 모든 모델 RPD 소진 시 DailyLimitExhausted → 다음 공급자로 폴백(Groq) 또는 안내 반환(Gemini)
 """
 
 import json
@@ -42,7 +38,6 @@ GROQ_MODELS = [
     "qwen/qwen3.8-27b",            # RPD 1K / TPD 200K
     "openai/gpt-oss-120b",         # RPD 1K / TPD 200K
     "openai/gpt-oss-20b",          # RPD 1K / TPD 200K
-    "openai/gpt-oss-safeguard-20b" # RPD 1K / TPD 200K
     # "llama-3.3-70b-versatile",   # RPD 1K / TPD 100K — 단종됨
     # "llama-3.1-8b-instant",      # RPD 14.4K / TPD 500K — 단종됨
 ]
@@ -367,18 +362,35 @@ def chat():
     message = data.get("message", "")
     history = data.get("history", [])  # [{"role": "user/assistant", "content": "..."}]
 
+    # try:
+    #     reply, model_used = _try_gemini(history, message)
+    # except Exception as e:
+    #     print(f"[Gemini] 실패({e!r}) → Groq로 폴백")
+    #     try:
+    #         reply, model_used = _try_groq(history, message)
+    #     except DailyLimitExhausted:
+    #         return jsonify({"reply": DAILY_EXHAUSTED_MSG}), 429
+    #     except groq.RateLimitError:
+    #         return jsonify({"reply": "잠시 후 다시 시도해주세요. (RPM 한도 일시 초과)"}), 429
+    #     except Exception as e2:
+    #         return jsonify({"reply": f"(오류: {e2})"}), 500
+
+
     try:
-        reply, model_used = _try_gemini(history, message)
+        reply, model_used = _try_groq(history, message)
     except Exception as e:
-        print(f"[Gemini] 실패({e!r}) → Groq로 폴백")
+        print(f"[Groq] 실패({e!r}) → Gemini로 폴백")
         try:
-            reply, model_used = _try_groq(history, message)
+            reply, model_used = _try_gemini(history, message)
         except DailyLimitExhausted:
             return jsonify({"reply": DAILY_EXHAUSTED_MSG}), 429
-        except groq.RateLimitError:
-            return jsonify({"reply": "잠시 후 다시 시도해주세요. (RPM 한도 일시 초과)"}), 429
+        except genai_errors.ClientError as e2:
+            if e2.code == 429:
+                return jsonify({"reply": "잠시 후 다시 시도해주세요. (RPM 한도 일시 초과)"}), 429
+            return jsonify({"reply": f"(오류: {e2})"}), 500
         except Exception as e2:
             return jsonify({"reply": f"(오류: {e2})"}), 500
+
 
     print(f"[{room_id}] {sender}: {message!r} → {reply!r} (via {model_used})", flush=True)
     return jsonify({"reply": reply})
