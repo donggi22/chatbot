@@ -36,6 +36,7 @@ kakao_bp = Blueprint("kakao", __name__)
 # Groq — 위에서부터 시도
 GROQ_MODELS = [
     "qwen/qwen3.8-27b",             # RPD 1K / TPD 200K
+    "qwen/qwen3.6-27b",             # RPD 1K / TPD 200K
     "openai/gpt-oss-120b",          # RPD 1K / TPD 200K
     "openai/gpt-oss-20b",           # RPD 1K / TPD 200K
     "openai/gpt-oss-safeguard-20b", # RPD 1K / TPD 200K
@@ -227,6 +228,10 @@ class GroqRouter(_RateLimitRouter):
         return any(x in msg for x in ("per day", "per_day", "RPD", "TPD"))
 
     def _call(self, model: str, **kwargs):
+        if model.startswith("openai/gpt-oss"):
+            kwargs["reasoning_effort"] = "low"
+        elif model.startswith("qwen/"):
+            kwargs["reasoning_effort"] = "none"
         return self.client.chat.completions.create(model=model, **kwargs)
 
 
