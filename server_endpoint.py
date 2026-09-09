@@ -96,10 +96,18 @@ GEMINI_TOOLS = [
 def _get_battery_capacity() -> int:
     base = "/sys/class/power_supply"
     for entry in os.listdir(base):
-        type_path = os.path.join(base, entry, "type")
-        if os.path.isfile(type_path) and open(type_path).read().strip() == "Battery":
-            with open(os.path.join(base, entry, "capacity")) as f:
-                return int(f.read().strip())
+        d = os.path.join(base, entry)
+        type_path = os.path.join(d, "type")
+        cap_path = os.path.join(d, "capacity")
+        scope_path = os.path.join(d, "scope")
+        if not (os.path.isfile(type_path) and open(type_path).read().strip() == "Battery"):
+            continue
+        if os.path.isfile(scope_path) and open(scope_path).read().strip() == "Device":
+            continue  # 마우스/키보드 등 주변기기 배터리
+        if not os.path.isfile(cap_path):
+            continue
+        with open(cap_path) as f:
+            return int(f.read().strip())
     raise RuntimeError("배터리 장치를 찾을 수 없습니다")
 
 
